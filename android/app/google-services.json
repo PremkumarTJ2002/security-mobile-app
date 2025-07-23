@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "454921925709",
+    "project_id": "visitor-entry-app-1a330",
+    "storage_bucket": "visitor-entry-app-1a330.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454921925709:android:e1d83bd0bbf725c8579804",
+        "android_client_info": {
+          "package_name": "com.example.visitor_entry_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtzXw1BT4gY8w94cMJlIpJpSLiAhfjdZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:454921925709:android:1ff89c304e93cb26579804",
+        "android_client_info": {
+          "package_name": "com.security.visitor_entry_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAtzXw1BT4gY8w94cMJlIpJpSLiAhfjdZ8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

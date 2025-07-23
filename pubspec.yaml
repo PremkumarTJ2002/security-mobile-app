@@ -1,0 +1,16 @@
+name: visitor_entry_app
+description: A new Flutter project.
+
+environment:
+  sdk: '^3.8.0'
+
+dependencies:
+  flutter:
+    sdk: flutter
+  firebase_core: ^2.31.0
+  firebase_auth: ^4.19.2
+  cloud_firestore: ^4.16.0
+  firebase_storage: ^11.7.1
+  firebase_messaging: ^14.8.1
+  image_picker: ^1.1.1
+  provider: ^6.1.2
