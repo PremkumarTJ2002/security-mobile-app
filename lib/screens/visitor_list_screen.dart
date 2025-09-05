@@ -1,290 +1,204 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
-import '../models/visitor.dart';
-import '../services/visitor_service.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 
-class VisitorListScreen extends StatefulWidget {
+class VisitorListScreen extends StatelessWidget {
   final String? filterStatus;
 
   const VisitorListScreen({Key? key, this.filterStatus}) : super(key: key);
 
   @override
-  _VisitorListScreenState createState() => _VisitorListScreenState();
-}
-
-class _VisitorListScreenState extends State<VisitorListScreen> {
-  final VisitorService _visitorService = VisitorService();
-  String _searchQuery = '';
-
-  @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(
-          widget.filterStatus != null
-              ? '${widget.filterStatus!.split('-').map((e) => e[0].toUpperCase() + e.substring(1)).join(' ')} Visitors'
-              : 'All Visitors',
-        ),
-        backgroundColor: Colors.blue[700],
-        foregroundColor: Colors.white,
-        actions: [
-          IconButton(
-            icon: Icon(Icons.search),
-            onPressed: () {
-              _showSearchDialog();
-            },
-          ),
-        ],
-      ),
-      body: StreamBuilder<List<Visitor>>(
-        stream: widget.filterStatus != null
-            ? _visitorService.getVisitorsByStatus(widget.filterStatus!)
-            : _visitorService.getVisitors(),
-        builder: (context, snapshot) {
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
+    final currentUid = FirebaseAuth.instance.currentUser?.uid;
 
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(child: CircularProgressIndicator());
-          }
+    // Base collection
+    Query<Map<String, dynamic>> baseQuery =
+        FirebaseFirestore.instance.collection('visitors');
 
-          List<Visitor> visitors = snapshot.data ?? [];
+    // Apply status filter if provided
+    if (filterStatus != null) {
+      baseQuery = baseQuery.where('status', isEqualTo: filterStatus);
+    }
 
-          if (visitors.isEmpty) {
-            return Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.people_outline, size: 80, color: Colors.grey),
-                  SizedBox(height: 16),
-                  Text(
-                    'No visitors found',
-                    style: TextStyle(fontSize: 18, color: Colors.grey[600]),
-                  ),
-                ],
-              ),
-            );
-          }
+    // ✅ Restrict to assigned owner unless security
+    final currentUser = FirebaseAuth.instance.currentUser;
+    return FutureBuilder<DocumentSnapshot>(
+      future: FirebaseFirestore.instance
+          .collection('users')
+          .doc(currentUser?.uid)
+          .get(),
+      builder: (context, userSnapshot) {
+        if (userSnapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          return ListView.builder(
-            padding: EdgeInsets.all(16),
-            itemCount: visitors.length,
-            itemBuilder: (context, index) {
-              final visitor = visitors[index];
-              return Card(
-                margin: EdgeInsets.only(bottom: 12),
-                elevation: 2,
-                child: ListTile(
-                  contentPadding: EdgeInsets.all(16),
-                  leading: CircleAvatar(
-                    radius: 30,
-                    backgroundColor: Colors.blue[100],
-                    child: visitor.photoUrl != null
-                        ? ClipOval(
-                            child: Image.network(
-                              visitor.photoUrl!,
-                              width: 60,
-                              height: 60,
-                              fit: BoxFit.cover,
-                              errorBuilder: (context, error, stackTrace) {
-                                return Icon(
-                                  Icons.person,
-                                  size: 30,
-                                  color: Colors.blue[700],
-                                );
-                              },
-                            ),
-                          )
-                        : Icon(Icons.person, size: 30, color: Colors.blue[700]),
-                  ),
-                  title: Text(
-                    visitor.name,
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
-                  ),
-                  subtitle: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(height: 4),
-                      Text('Phone: ${visitor.phone}'),
-                      Text('Purpose: ${visitor.purpose}'),
-                      Text('Host: ${visitor.hostName}'),
-                      Text(
-                        'Entry: ${_formatDateTime(visitor.entryTime)}',
-                        style: TextStyle(fontSize: 12),
-                      ),
-                      if (visitor.exitTime != null)
-                        Text(
-                          'Exit: ${_formatDateTime(visitor.exitTime!)}',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                      SizedBox(height: 8),
-                      Container(
-                        padding: EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: visitor.status == 'checked-in'
-                              ? Colors.green[100]
-                              : Colors.red[100],
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          visitor.status == 'checked-in'
-                              ? 'Checked In'
-                              : 'Checked Out',
-                          style: TextStyle(
-                            color: visitor.status == 'checked-in'
-                                ? Colors.green[800]
-                                : Colors.red[800],
-                            fontSize: 12,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  trailing: visitor.status == 'checked-in'
-                      ? PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'checkout') {
-                              _checkOutVisitor(visitor);
-                            } else if (value == 'delete') {
-                              _deleteVisitor(visitor);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'checkout',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.exit_to_app, color: Colors.orange),
-                                  SizedBox(width: 8),
-                                  Text('Check Out'),
-                                ],
-                              ),
-                            ),
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('Delete'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        )
-                      : PopupMenuButton<String>(
-                          onSelected: (value) {
-                            if (value == 'delete') {
-                              _deleteVisitor(visitor);
-                            }
-                          },
-                          itemBuilder: (context) => [
-                            PopupMenuItem(
-                              value: 'delete',
-                              child: Row(
-                                children: [
-                                  Icon(Icons.delete, color: Colors.red),
-                                  SizedBox(width: 8),
-                                  Text('Delete'),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+        if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
+          return const Scaffold(
+            body: Center(child: Text('User data not found')),
+          );
+        }
+
+        final role = userSnapshot.data!.get('role') ?? 'unknown';
+
+        Query<Map<String, dynamic>> visitorQuery;
+
+        if (role == 'security') {
+          // 🔓 Security sees all
+          visitorQuery = baseQuery.orderBy('entryTime', descending: true);
+        } else {
+          // 🔐 Owners see only theirs or approvableByAll
+          visitorQuery = baseQuery
+              .where(
+                Filter.or(
+                  Filter('assignedOwnerUid', isEqualTo: currentUid),
+                  Filter('approvableByAll', isEqualTo: true),
                 ),
+              )
+              .orderBy('entryTime', descending: true);
+        }
+
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(filterStatus != null
+                ? '${filterStatus![0].toUpperCase()}${filterStatus!.substring(1)} Visitors'
+                : 'All Visitors'),
+            backgroundColor: const Color.fromARGB(255, 255, 105, 60),
+            foregroundColor: const Color.fromARGB(255, 255, 194, 161),
+          ),
+          body: StreamBuilder<QuerySnapshot>(
+            stream: visitorQuery.snapshots(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+
+              final visitors = snapshot.data?.docs ?? [];
+
+              if (visitors.isEmpty) {
+                return Center(
+                  child: Text(
+                    'No visitors found.',
+                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                itemCount: visitors.length,
+                itemBuilder: (context, index) {
+                  final doc = visitors[index];
+                  final data = doc.data() as Map<String, dynamic>;
+                  final status = data['status'] ?? 'unknown';
+
+                  Color getStatusColor(String status) {
+                    switch (status) {
+                      case 'pending':
+                        return Colors.orange;
+                      case 'checked-in':
+                        return Colors.green;
+                      case 'checked-out':
+                        return Colors.grey;
+                      default:
+                        return Colors.black54;
+                    }
+                  }
+
+                  return Card(
+                    margin:
+                        const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    elevation: 3,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(12.0),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                radius: 30,
+                                backgroundColor: Colors.grey[300],
+                                child: ClipOval(
+                                  child: data['photoUrl'] != null
+                                      ? CachedNetworkImage(
+                                          imageUrl: data['photoUrl'],
+                                          width: 60,
+                                          height: 60,
+                                          fit: BoxFit.cover,
+                                          placeholder: (context, url) =>
+                                              const Center(
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                            ),
+                                          ),
+                                          errorWidget:
+                                              (context, url, error) =>
+                                                  const Icon(Icons.error,
+                                                      color: Colors.red),
+                                          memCacheWidth: 120,
+                                          memCacheHeight: 120,
+                                        )
+                                      : const Icon(Icons.person,
+                                          color: Colors.white),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(data['name'] ?? 'No name',
+                                        style: const TextStyle(
+                                            fontWeight: FontWeight.bold)),
+                                    const SizedBox(height: 4),
+                                    Text('Purpose: ${data['purpose'] ?? ''}'),
+                                    Text(
+                                      'Assigned to: ${data['assignedOwnerName'] ?? 'All Owners'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                    Text(
+                                        'Product Category: ${data['productCategory'] ?? 'N/A'}',
+                                        style: const TextStyle(fontSize: 12)),
+                                    Text('Phone: ${data['phone'] ?? 'N/A'}'),
+                                    Text(
+                                      'Entry Time: ${data['entryTime'] != null ? (data['entryTime'] as Timestamp).toDate().toLocal().toString() : 'N/A'}',
+                                      style: const TextStyle(fontSize: 12),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    horizontal: 8, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: getStatusColor(status),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  status.toUpperCase(),
+                                  style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                      fontSize: 12),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          );
-        },
-      ),
-    );
-  }
-
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.day}/${dateTime.month}/${dateTime.year} ${dateTime.hour}:${dateTime.minute.toString().padLeft(2, '0')}';
-  }
-
-  Future<void> _checkOutVisitor(Visitor visitor) async {
-    try {
-      await _visitorService.checkOutVisitor(visitor.id);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Visitor checked out successfully!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error checking out visitor: $e')));
-    }
-  }
-
-  Future<void> _deleteVisitor(Visitor visitor) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Delete Visitor'),
-        content: Text('Are you sure you want to delete ${visitor.name}?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: Text('Delete'),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
-          ),
-        ],
-      ),
-    );
-
-    if (confirmed == true) {
-      try {
-        await _visitorService.deleteVisitor(visitor.id);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Visitor deleted successfully!')),
         );
-      } catch (e) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error deleting visitor: $e')));
-      }
-    }
-  }
-
-  void _showSearchDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Search Visitors'),
-        content: TextField(
-          decoration: InputDecoration(
-            labelText: 'Search by name',
-            border: OutlineInputBorder(),
-          ),
-          onChanged: (value) {
-            setState(() {
-              _searchQuery = value;
-            });
-          },
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              // Implement search functionality
-            },
-            child: Text('Search'),
-          ),
-        ],
-      ),
+      },
     );
   }
 }

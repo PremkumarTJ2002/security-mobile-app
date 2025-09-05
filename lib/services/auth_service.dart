@@ -13,13 +13,11 @@ class AuthService {
     required String role,
   }) async {
     try {
-      UserCredential userCredential = await _auth
-          .createUserWithEmailAndPassword(
-            email: email.trim(),
-            password: password.trim(),
-          );
+      UserCredential userCredential = await _auth.createUserWithEmailAndPassword(
+        email: email.trim(),
+        password: password.trim(),
+      );
 
-      // Save user data to Firestore
       await _firestore.collection('users').doc(userCredential.user!.uid).set({
         'uid': userCredential.user!.uid,
         'email': email.trim(),
@@ -47,10 +45,8 @@ class AuthService {
         password: password.trim(),
       );
 
-      final userDoc = await _firestore
-          .collection('users')
-          .doc(userCredential.user!.uid)
-          .get();
+      final userDoc =
+          await _firestore.collection('users').doc(userCredential.user!.uid).get();
 
       if (!userDoc.exists) {
         return {'error': 'User data not found in Firestore'};
@@ -85,13 +81,10 @@ class AuthService {
   String? getCurrentUserId() {
     return _auth.currentUser?.uid;
   }
-  
+
+  /// Get current user instance
   User? get currentUser {
-
-    // Replace with the actual logic to retrieve the current user
-
     return FirebaseAuth.instance.currentUser;
-
   }
 
   /// Get current user role
@@ -101,5 +94,74 @@ class AuthService {
 
     final userDoc = await _firestore.collection('users').doc(uid).get();
     return userDoc.data()?['role'];
+  }
+
+  /// Get recent visitors ordered by check-in time
+  Future<List<Map<String, dynamic>>> getRecentVisitors({int limit = 5}) async {
+    try {
+      final snapshot = await _firestore
+          .collection('visitors')
+          .where('status', isEqualTo: 'checked-in')
+          .orderBy('entryTime', descending: true)
+          .limit(limit)
+          .get();
+
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'name': data['name'] ?? 'Unknown',
+          'status': data['status'] ?? 'Unknown',
+          'time': _formatTimestamp(data['entryTime']), // ✅ corrected field
+        };
+      }).toList();
+    } catch (e) {
+      print('Error fetching recent visitors: $e');
+      return [];
+    }
+  }
+
+  /// Format Firestore timestamp to readable string
+  String _formatTimestamp(Timestamp? timestamp) {
+    if (timestamp == null) return '';
+    final dateTime = timestamp.toDate();
+    final hour = dateTime.hour.toString().padLeft(2, '0');
+    final minute = dateTime.minute.toString().padLeft(2, '0');
+    return '$hour:$minute';
+  }
+
+  // 🔹 NEW METHOD: Get visitors assigned to the current logged-in owner
+  Future<List<Map<String, dynamic>>> getVisitorsForCurrentOwner() async {
+    final user = _auth.currentUser;
+    if (user == null) return [];
+
+    try {
+      final query = await _firestore
+          .collection('visitors')
+          .where(
+            Filter.or(
+              Filter('assignedOwnerUid', isEqualTo: user.uid),
+              Filter('approvableByAll', isEqualTo: true),
+            ),
+          )
+          .orderBy('entryTime', descending: true)
+          .get();
+
+      return query.docs.map((doc) {
+        final data = doc.data();
+        return {
+          'id': doc.id,
+          'name': data['name'] ?? 'Unknown',
+          'phone': data['phone'] ?? '',
+          'purpose': data['purpose'] ?? '',
+          'status': data['status'] ?? 'pending',
+          'productCategory': data['productCategory'] ?? 'N/A',
+          'assignedOwnerEmail': data['assignedOwnerEmail'] ?? '',
+          'time': _formatTimestamp(data['entryTime']),
+        };
+      }).toList();
+    } catch (e) {
+      print("Error fetching visitors for owner: $e");
+      return [];
+    }
   }
 }
