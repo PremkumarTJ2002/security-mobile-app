@@ -2,15 +2,49 @@ name: visitor_entry_app
 description: A new Flutter project.
 
 environment:
-  sdk: '^3.8.0'
+  sdk: "^3.8.0"
 
 dependencies:
   flutter:
     sdk: flutter
-  firebase_core: ^2.31.0
-  firebase_auth: ^4.19.2
-  cloud_firestore: ^4.16.0
-  firebase_storage: ^11.7.1
-  firebase_messaging: ^14.8.1
+  firebase_core: ^4.0.0
+  firebase_auth: ^6.0.0
+  cloud_firestore: ^6.0.0
+  firebase_storage: ^13.0.0
+  firebase_messaging: ^16.0.0
+  flutter_local_notifications: ^14.1.1
+  cached_network_image: ^3.3.1
   image_picker: ^1.1.1
   provider: ^6.1.2
+  uuid: ^4.0.0
+  http: ^1.4.0
+  mime: ^1.0.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_launcher_icons: ^0.13.1
+  flutter_native_splash: ^2.4.0
+
+flutter:
+
+  uses-material-design: true
+
+  assets:
+    - lib/assets/logo.png
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: "lib/assets/start.png"
+  adaptive_icon_background: "#fdfae5" # background color for Android adaptive icon
+  adaptive_icon_foreground: "lib/assets/logo.png"
+  remove_alpha_ios: true
+
+flutter_native_splash:
+  color: "#fdfae5"
+  image: "lib/assets/start.png" # splash image (centered logo)
+  android: true
+  ios: true
+  web: true
+  android_gravity: center

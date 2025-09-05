@@ -5,12 +5,14 @@ import 'package:provider/provider.dart';
 import 'firebase_options.dart';
 import 'services/auth_service.dart';
 import 'screens/login_screen.dart';
-import 'screens/home_screen.dart';
+import 'package:visitor_entry_app/screens/home_screen.dart';
 import 'screens/register_screen.dart';
+import 'package:visitor_entry_app/screens/notification_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  await NotificationService.init();
   runApp(MyApp());
 }
 
@@ -35,9 +37,33 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
+  @override
+  _AuthWrapperState createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _notificationsInitialized = false;
+
+  @override
+  void initState() {
+    super.initState();
+    initNotifications();
+  }
+
+  void initNotifications() async {
+    await NotificationService.init();
+    setState(() {
+      _notificationsInitialized = true;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    if (!_notificationsInitialized) {
+      return Scaffold(body: Center(child: CircularProgressIndicator()));
+    }
+
     return StreamBuilder<User?>(
       stream: FirebaseAuth.instance.authStateChanges(),
       builder: (context, snapshot) {
@@ -46,13 +72,12 @@ class AuthWrapper extends StatelessWidget {
         }
 
         if (snapshot.hasData) {
-          // User is logged in
           return HomeScreen();
         } else {
-          // User is not logged in
           return LoginScreen();
         }
       },
     );
   }
 }
+
